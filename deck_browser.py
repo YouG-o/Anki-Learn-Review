@@ -6,6 +6,7 @@ from typing import Any, Callable
 from aqt import gui_hooks, mw
 from aqt.deckbrowser import DeckBrowser
 
+from . import scheduler
 from .logger import log, log_debug, log_exception
 
 
@@ -69,27 +70,23 @@ BUTTON_STYLE = """
 .lr-button-review {
     border-color: rgba(80, 150, 90, 0.55);
 }
+</style>
 """
 
 
-GetTodayCounts = Callable[[int], tuple[int, int]]
 StartSession = Callable[[str, int], None]
 
-_get_today_counts: GetTodayCounts | None = None
 _start_session: StartSession | None = None
 
 
 def initialize(
-    get_today_counts: GetTodayCounts,
     start_session: StartSession,
 ) -> None:
     """
     Initialize the Deck Browser integration.
     """
-    global _get_today_counts
     global _start_session
 
-    _get_today_counts = get_today_counts
     _start_session = start_session
 
     gui_hooks.deck_browser_will_render_content.append(
@@ -112,12 +109,7 @@ def get_deck_button_html(
     Review is always on the right.
     """
     try:
-        if _get_today_counts is None:
-            raise RuntimeError(
-                "Deck Browser has not been initialized."
-            )
-
-        learn_count, review_count = _get_today_counts(
+        learn_count, review_count = scheduler.get_today_counts(
             deck_id
         )
 

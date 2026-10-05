@@ -47,7 +47,6 @@ from . import deck_browser, session_manager
 session_manager.register_hooks()
 
 deck_browser.initialize(
-    get_today_counts=scheduler.get_today_counts,
     start_session=session_manager.start_session,
 )
 
