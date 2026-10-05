@@ -438,9 +438,25 @@ def custom_get_next_v3_card(
     self._v3 = None
 
 
+_patches_applied: bool = False
+
+
 def apply_patches() -> None:
     """
-    Install Reviewer monkey patches.
+    Install Reviewer monkey patches safely.
     """
+    global _patches_applied
+
+    if _patches_applied:
+        return
+
+    if not hasattr(Reviewer, "_get_next_v3_card") or not hasattr(
+        Reviewer, "_answerCard"
+    ):
+        _log("REVIEWER_PATCH_ERROR: expected Reviewer methods missing")
+        return
+
     Reviewer._get_next_v3_card = lambda self: custom_get_next_v3_card(self)
     Reviewer._answerCard = custom_answer_card
+    _patches_applied = True
+    _log("Reviewer patches successfully installed")
