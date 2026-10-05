@@ -34,6 +34,7 @@ def build() -> None:
         "__init__.py",
         "addon.json",
         "deck_browser.py",
+        "reviewer.py",
         "scheduler.py",
         "session.py",
     ]
