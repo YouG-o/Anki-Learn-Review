@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from __future__ import annotations
-
 from aqt import gui_hooks, mw
+from aqt.utils import tooltip
 
 from .logger import ADDON_DIR, LOG_FILE, log, log_debug, log_exception
 
@@ -35,7 +34,7 @@ from . import scheduler
 
 from . import reviewer
 
-reviewer.apply_patches()
+compatibility_ok = reviewer.apply_patches()
 
 
 # ============================================================================
@@ -44,11 +43,19 @@ reviewer.apply_patches()
 
 from . import deck_browser, session_manager
 
-session_manager.register_hooks()
+if compatibility_ok:
+    session_manager.register_hooks()
+    deck_browser.initialize(
+        start_session=session_manager.start_session,
+    )
+else:
+    def on_incompatible_main_window_init() -> None:
+        tooltip(
+            "Learn & Review is incompatible with this Anki version.",
+            period=5000,
+        )
 
-deck_browser.initialize(
-    start_session=session_manager.start_session,
-)
+    gui_hooks.main_window_did_init.append(on_incompatible_main_window_init)
 
 
 # ============================================================================
@@ -134,71 +141,76 @@ gui_hooks.state_did_change.append(
 # Ready
 # ============================================================================
 
-log(
-    "Reviewer._get_next_v3_card patched"
-)
+if compatibility_ok:
+    log(
+        "Reviewer._get_next_v3_card patched"
+    )
 
-log(
-    "Reviewer._answerCard patched with GradeNow"
-)
+    log(
+        "Reviewer._answerCard patched with GradeNow"
+    )
 
-log(
-    "Session semantics: initial scope frozen"
-)
+    log(
+        "Session semantics: initial scope frozen"
+    )
 
-log(
-    "Learn semantics: New cards only, one pass per card"
-)
+    log(
+        "Learn semantics: New cards only, one pass per card"
+    )
 
-log(
-    "Review semantics: Learning + Review + Relearning"
-)
+    log(
+        "Review semantics: Learning + Review + Relearning"
+    )
 
-log(
-    "Review semantics: cards can be revisited when native scheduler "
-    "makes them immediately available"
-)
+    log(
+        "Review semantics: cards can be revisited when native scheduler "
+        "makes them immediately available"
+    )
 
-log(
-    "Review reinsertion restricted to initial session scope"
-)
+    log(
+        "Review reinsertion restricted to initial session scope"
+    )
 
-log(
-    "Native scheduler decides Review card re-availability"
-)
+    log(
+        "Native scheduler decides Review card re-availability"
+    )
 
-log(
-    "Deck limits and scheduler configuration are never modified"
-)
+    log(
+        "Deck limits and scheduler configuration are never modified"
+    )
 
-log(
-    "No filtered decks are created"
-)
+    log(
+        "No filtered decks are created"
+    )
 
-log(
-    "Deck Browser integration initialized"
-)
+    log(
+        "Deck Browser integration initialized"
+    )
 
-log(
-    "Dedicated Learn & Review column installed"
-)
+    log(
+        "Dedicated Learn & Review column installed"
+    )
 
-log(
-    "Native Options column preserved separately"
-)
+    log(
+        "Native Options column preserved separately"
+    )
 
-log(
-    "JS command hook installed"
-)
+    log(
+        "JS command hook installed"
+    )
 
-log(
-    "Reviewer answer hook installed"
-)
+    log(
+        "Reviewer answer hook installed"
+    )
 
-log(
-    "State hooks installed"
-)
+    log(
+        "State hooks installed"
+    )
 
-log(
-    "Learn & Review - READY"
-)
+    log(
+        "Learn & Review - READY"
+    )
+else:
+    log(
+        "Learn & Review - ABORTED: Incompatible Anki version"
+    )

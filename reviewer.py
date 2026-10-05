@@ -427,22 +427,31 @@ def custom_get_next_v3_card(
 _patches_applied: bool = False
 
 
-def apply_patches() -> None:
+def is_compatible() -> bool:
+    """
+    Check if the native Reviewer has the methods expected by Learn & Review.
+    """
+    return hasattr(Reviewer, "_get_next_v3_card") and hasattr(
+        Reviewer, "_answerCard"
+    )
+
+
+def apply_patches() -> bool:
     """
     Install Reviewer monkey patches safely.
+    Returns True if patches were installed or already installed, False otherwise.
     """
     global _patches_applied
 
     if _patches_applied:
-        return
+        return True
 
-    if not hasattr(Reviewer, "_get_next_v3_card") or not hasattr(
-        Reviewer, "_answerCard"
-    ):
+    if not is_compatible():
         log("REVIEWER_PATCH_ERROR: expected Reviewer methods missing")
-        return
+        return False
 
     Reviewer._get_next_v3_card = lambda self: custom_get_next_v3_card(self)
     Reviewer._answerCard = custom_answer_card
     _patches_applied = True
     log("Reviewer patches successfully installed")
+    return True
