@@ -10,6 +10,7 @@ from anki.consts import (
     QUEUE_TYPE_NEW,
     QUEUE_TYPE_REV,
 )
+from anki.hooks import wrap
 from anki.scheduler_pb2 import CardAnswer
 from aqt import gui_hooks, mw
 from aqt.reviewer import Reviewer
@@ -77,10 +78,6 @@ class SessionV3Info:
         raise ValueError(
             f"Invalid ease: {ease}"
         )
-
-
-ORIGINAL_GET_NEXT_V3_CARD = Reviewer._get_next_v3_card
-ORIGINAL_ANSWER_CARD = Reviewer._answerCard
 
 
 def get_custom_scheduling_info(
@@ -207,6 +204,7 @@ def grade_card_now(
 def custom_answer_card(
     self: Reviewer,
     ease: int,
+    _old: Any,
 ) -> None:
     """
     Replace Reviewer._answerCard() only while a Learn & Review session
@@ -217,7 +215,7 @@ def custom_answer_card(
     current_session = session.get_session()
 
     if current_session is None:
-        return ORIGINAL_ANSWER_CARD(
+        return _old(
             self,
             ease,
         )
@@ -233,7 +231,6 @@ def custom_answer_card(
         return
 
     card = self.card
-
     log(
         f"SESSION_ANSWER_REQUEST "
         f"mode={current_session.mode} "
@@ -317,6 +314,7 @@ def custom_answer_card(
 
 def custom_get_next_v3_card(
     self: Reviewer,
+    _old: Any,
 ) -> None:
     """
     Replacement for Reviewer._get_next_v3_card() while a Learn & Review
@@ -332,7 +330,7 @@ def custom_get_next_v3_card(
     current_session = session.get_session()
 
     if current_session is None:
-        return ORIGINAL_GET_NEXT_V3_CARD(self)
+        return _old(self)
 
     log(
         f"REVIEWER_NEXT "
@@ -422,8 +420,6 @@ def custom_get_next_v3_card(
 
     self.card = None
     self._v3 = None
-
-
 _patches_applied: bool = False
 
 
@@ -450,8 +446,13 @@ def apply_patches() -> bool:
         log("REVIEWER_PATCH_ERROR: expected Reviewer methods missing")
         return False
 
-    Reviewer._get_next_v3_card = lambda self: custom_get_next_v3_card(self)
-    Reviewer._answerCard = custom_answer_card
+    Reviewer._get_next_v3_card = wrap(
+        Reviewer._get_next_v3_card, custom_get_next_v3_card, "around"
+    )
+    Reviewer._answerCard = wrap(
+        Reviewer._answerCard, custom_answer_card, "around"
+    )
     _patches_applied = True
     log("Reviewer patches successfully installed")
     return True
+
