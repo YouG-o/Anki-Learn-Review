@@ -30,6 +30,15 @@ The `addons21` directory is located at:
 * **macOS:** `~/Library/Application Support/Anki2/addons21`
 * **Linux:** `~/.local/share/Anki2/addons21`
 
+### How to build
+
+To package the add-on into a distributable `.zip` file, run the build script:
+
+```bash
+python3 build.py
+```
+
+The resulting zip file will be generated in the `dist/` directory.
 
 ## Technical approach
 
