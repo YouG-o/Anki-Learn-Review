@@ -37,6 +37,7 @@ def build() -> None:
         "reviewer.py",
         "scheduler.py",
         "session.py",
+        "session_manager.py",
     ]
 
     # Clean previous build.
