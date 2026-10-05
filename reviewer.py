@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from anki.cards import Card
 from anki.consts import (
@@ -15,22 +15,8 @@ from aqt import gui_hooks, mw
 from aqt.reviewer import Reviewer
 
 from . import scheduler, session
+from .logger import log, log_debug, log_exception
 from .session import ReviewSession
-
-Log = Callable[[str], None]
-LogException = Callable[[str], None]
-
-_log: Log = lambda _message: None
-_log_exception: LogException = lambda _message: None
-
-
-def init_logger(log: Log, log_exception: LogException) -> None:
-    """
-    Configure logging callbacks for the reviewer integration.
-    """
-    global _log, _log_exception
-    _log = log
-    _log_exception = log_exception
 
 
 @dataclass
@@ -115,7 +101,7 @@ def get_custom_scheduling_info(
     try:
         states.current.custom_data = card.custom_data
     except Exception:
-        _log(
+        log(
             "STATE_CUSTOM_DATA_ASSIGN_FAILED "
             f"card_id={card.id}"
         )
@@ -195,7 +181,7 @@ def grade_card_now(
     except KeyError:
         raise ValueError(f"Invalid ease: {ease}")
 
-    _log(
+    log(
         f"GRADE_NOW "
         f"card_id={card.id} "
         f"ease={ease} "
@@ -210,7 +196,7 @@ def grade_card_now(
         rating=int(rating),
     )
 
-    _log(
+    log(
         f"GRADE_NOW_COMPLETE "
         f"card_id={card.id}"
     )
@@ -243,12 +229,12 @@ def custom_answer_card(
         return
 
     if self.card is None:
-        _log("ANSWER_ABORTED no current card")
+        log("ANSWER_ABORTED no current card")
         return
 
     card = self.card
 
-    _log(
+    log(
         f"SESSION_ANSWER_REQUEST "
         f"mode={current_session.mode} "
         f"card_id={card.id} "
@@ -264,7 +250,7 @@ def custom_answer_card(
     )
 
     if not proceed:
-        _log(
+        log(
             f"SESSION_ANSWER_CANCELLED "
             f"card_id={card.id}"
         )
@@ -305,7 +291,7 @@ def custom_answer_card(
             and self.card.queue < 0
         )
 
-        _log(
+        log(
             f"SESSION_ANSWERED "
             f"mode={current_session.mode} "
             f"card_id={card.id} "
@@ -321,7 +307,7 @@ def custom_answer_card(
             self.onLeech(suspended)
 
     except Exception:
-        _log_exception(
+        log_exception(
             f"SESSION_GRADE_NOW_ERROR "
             f"card_id={card.id} "
             f"ease={ease}"
@@ -348,7 +334,7 @@ def custom_get_next_v3_card(
     if current_session is None:
         return ORIGINAL_GET_NEXT_V3_CARD(self)
 
-    _log(
+    log(
         f"REVIEWER_NEXT "
         f"mode={current_session.mode} "
         f"deck_id={current_session.deck_id} "
@@ -371,7 +357,7 @@ def custom_get_next_v3_card(
             card = mw.col.get_card(card_id)
 
             if card is None:
-                _log(
+                log(
                     f"SESSION_CARD_MISSING "
                     f"card_id={card_id}"
                 )
@@ -382,7 +368,7 @@ def custom_get_next_v3_card(
                 card,
                 current_session.mode,
             ):
-                _log(
+                log(
                     f"SESSION_CARD_SKIPPED "
                     f"card_id={card_id} "
                     f"mode={current_session.mode} "
@@ -403,7 +389,7 @@ def custom_get_next_v3_card(
 
             self.card.start_timer()
 
-            _log(
+            log(
                 f"SESSION_CARD_SELECTED "
                 f"card_id={card.id} "
                 f"deck_id={card.did} "
@@ -417,13 +403,13 @@ def custom_get_next_v3_card(
             return
 
         except Exception:
-            _log_exception(
+            log_exception(
                 f"SESSION_CARD_LOAD_ERROR "
                 f"card_id={card_id}"
             )
             current_session.advance()
 
-    _log(
+    log(
         f"SESSION_FINISHED "
         f"mode={current_session.mode} "
         f"deck_id={current_session.deck_id} "
@@ -453,10 +439,10 @@ def apply_patches() -> None:
     if not hasattr(Reviewer, "_get_next_v3_card") or not hasattr(
         Reviewer, "_answerCard"
     ):
-        _log("REVIEWER_PATCH_ERROR: expected Reviewer methods missing")
+        log("REVIEWER_PATCH_ERROR: expected Reviewer methods missing")
         return
 
     Reviewer._get_next_v3_card = lambda self: custom_get_next_v3_card(self)
     Reviewer._answerCard = custom_answer_card
     _patches_applied = True
-    _log("Reviewer patches successfully installed")
+    log("Reviewer patches successfully installed")

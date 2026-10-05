@@ -6,6 +6,8 @@ from typing import Any, Callable
 from aqt import gui_hooks, mw
 from aqt.deckbrowser import DeckBrowser
 
+from .logger import log, log_debug, log_exception
+
 
 BUTTON_STYLE = """
 <style>
@@ -72,34 +74,23 @@ BUTTON_STYLE = """
 
 GetTodayCounts = Callable[[int], tuple[int, int]]
 StartSession = Callable[[str, int], None]
-Log = Callable[[str], None]
-LogException = Callable[[str], None]
-
 
 _get_today_counts: GetTodayCounts | None = None
 _start_session: StartSession | None = None
-_log: Log = lambda _message: None
-_log_exception: LogException = lambda _message: None
 
 
 def initialize(
     get_today_counts: GetTodayCounts,
     start_session: StartSession,
-    log: Log,
-    log_exception: LogException,
 ) -> None:
     """
     Initialize the Deck Browser integration.
     """
     global _get_today_counts
     global _start_session
-    global _log
-    global _log_exception
 
     _get_today_counts = get_today_counts
     _start_session = start_session
-    _log = log
-    _log_exception = log_exception
 
     gui_hooks.deck_browser_will_render_content.append(
         on_deck_browser_will_render_content
@@ -176,7 +167,7 @@ def get_deck_button_html(
 
         result = "".join(parts)
 
-        _log(
+        log(
             f"DECK_BUTTONS "
             f"deck_id={deck_id} "
             f"deck={deck_name!r} "
@@ -187,7 +178,7 @@ def get_deck_button_html(
         return result
 
     except Exception:
-        _log_exception(
+        log_exception(
             f"DECK_BUTTONS_ERROR "
             f"deck_id={deck_id} "
             f"deck={deck_name!r}"
@@ -217,7 +208,7 @@ def add_learn_review_header(
     match = header_pattern.search(tree_html)
 
     if not match:
-        _log(
+        log(
             "DECK_HEADER_OPTIONS_COLUMN_NOT_FOUND"
         )
         return tree_html
@@ -279,7 +270,7 @@ def fix_top_level_drag_row_colspan(
         fallback_match = fallback.search(tree_html)
 
         if not fallback_match:
-            _log(
+            log(
                 "TOP_LEVEL_DRAG_ROW_NOT_FOUND"
             )
             return tree_html
@@ -361,7 +352,7 @@ def inject_buttons_into_deck_row(
     match = row_pattern.search(tree_html)
 
     if not match:
-        _log(
+        log(
             f"DECK_ROW_NOT_FOUND "
             f"deck_id={deck_id} "
             f"deck={deck_name!r}"
@@ -385,7 +376,7 @@ def inject_buttons_into_deck_row(
     options_match = options_pattern.search(row)
 
     if not options_match:
-        _log(
+        log(
             f"OPTIONS_CELL_NOT_FOUND "
             f"deck_id={deck_id} "
             f"deck={deck_name!r}"
@@ -416,12 +407,12 @@ def on_deck_browser_will_render_content(
     """
     try:
         if mw.col is None:
-            _log(
+            log(
                 "DECK_RENDER skipped: no collection"
             )
             return
 
-        _log("DECK_RENDER start")
+        log("DECK_RENDER start")
 
         tree = content.tree
 
@@ -431,7 +422,7 @@ def on_deck_browser_will_render_content(
 
         rows = find_deck_rows(tree)
 
-        _log(
+        log(
             f"DECK_RENDER rows={len(rows)}"
         )
 
@@ -443,7 +434,7 @@ def on_deck_browser_will_render_content(
                 deck = mw.col.decks.get(deck_id)
 
                 if not deck:
-                    _log(
+                    log(
                         f"DECK_RENDER missing "
                         f"deck_id={deck_id}"
                     )
@@ -465,21 +456,21 @@ def on_deck_browser_will_render_content(
                     buttons_added += 1
 
             except Exception:
-                _log_exception(
+                log_exception(
                     f"DECK_RENDER_ROW_ERROR "
                     f"deck_id={deck_id}"
                 )
 
         content.tree = BUTTON_STYLE + tree
 
-        _log(
+        log(
             f"DECK_RENDER complete "
             f"processed={processed} "
             f"dedicated_cells_added={buttons_added}"
         )
 
     except Exception:
-        _log_exception("DECK_RENDER_ERROR")
+        log_exception("DECK_RENDER_ERROR")
 
 
 def handle_learn_review_command(
@@ -506,20 +497,20 @@ def handle_learn_review_command(
         mode, deck_id_text = payload.split(":", 1)
         deck_id = int(deck_id_text)
     except Exception:
-        _log(
+        log(
             f"COMMAND_INVALID "
             f"message={message!r}"
         )
         return True, None
 
     if mode not in ("learn", "review"):
-        _log(
+        log(
             f"COMMAND_INVALID_MODE "
             f"mode={mode!r}"
         )
         return True, None
 
-    _log(
+    log(
         f"COMMAND_RECEIVED "
         f"mode={mode} "
         f"deck_id={deck_id}"
@@ -537,7 +528,7 @@ def handle_learn_review_command(
         )
 
     except Exception:
-        _log_exception(
+        log_exception(
             f"START_SESSION_ERROR "
             f"mode={mode} "
             f"deck_id={deck_id}"

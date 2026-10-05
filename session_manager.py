@@ -1,28 +1,12 @@
 from __future__ import annotations
 
-from typing import Callable
-
 from anki.cards import Card
 from aqt import gui_hooks, mw
 from aqt.reviewer import Reviewer
 
 from . import scheduler, session
+from .logger import log, log_debug, log_exception
 from .session import ReviewSession
-
-Log = Callable[[str], None]
-LogException = Callable[[str], None]
-
-_log: Log = lambda _message: None
-_log_exception: LogException = lambda _message: None
-
-
-def init_logger(log: Log, log_exception: LogException) -> None:
-    """
-    Configure logging callbacks for the session manager.
-    """
-    global _log, _log_exception
-    _log = log
-    _log_exception = log_exception
 
 
 def start_session(
@@ -48,7 +32,7 @@ def start_session(
 
     deck_name = str(deck["name"])
 
-    _log(
+    log(
         f"START_SESSION "
         f"mode={mode} "
         f"deck_id={deck_id} "
@@ -62,7 +46,7 @@ def start_session(
         deck_id,
     )
 
-    _log(
+    log(
         f"START_SESSION_SNAPSHOT "
         f"mode={mode} "
         f"deck_id={deck_id} "
@@ -70,7 +54,7 @@ def start_session(
     )
 
     if not card_ids:
-        _log(
+        log(
             f"START_SESSION_ABORTED "
             f"mode={mode} "
             f"deck_id={deck_id} "
@@ -88,7 +72,7 @@ def start_session(
     )
     session.set_session(new_session)
 
-    _log(
+    log(
         f"SESSION_CREATED "
         f"mode={mode} "
         f"deck_id={deck_id} "
@@ -100,10 +84,10 @@ def start_session(
 
     try:
         mw.moveToState("review")
-        _log("MOVE_TO_REVIEW complete")
+        log("MOVE_TO_REVIEW complete")
     except Exception:
         session.clear_session()
-        _log_exception("MOVE_TO_REVIEW_ERROR")
+        log_exception("MOVE_TO_REVIEW_ERROR")
         raise
 
 
@@ -123,7 +107,7 @@ def on_reviewer_did_answer_card(
     try:
         active_session = current_session
 
-        _log(
+        log(
             f"ANSWERED "
             f"card_id={card.id} "
             f"ease={ease} "
@@ -135,7 +119,7 @@ def on_reviewer_did_answer_card(
         current_id = active_session.current_card_id()
 
         if current_id != card.id:
-            _log(
+            log(
                 f"SESSION_POSITION_MISMATCH "
                 f"expected={current_id} "
                 f"answered={card.id}"
@@ -144,7 +128,7 @@ def on_reviewer_did_answer_card(
 
         active_session.advance()
 
-        _log(
+        log(
             f"SESSION_ADVANCE "
             f"answered_card={card.id} "
             f"new_position={active_session.position} "
@@ -155,7 +139,7 @@ def on_reviewer_did_answer_card(
         # Learn
         # ----------------------------------------------------------------
         if active_session.mode == "learn":
-            _log(
+            log(
                 f"SESSION_REINSERT "
                 f"mode=learn "
                 f"card_id={card.id} "
@@ -169,7 +153,7 @@ def on_reviewer_did_answer_card(
         # ----------------------------------------------------------------
         if active_session.mode == "review":
             if not active_session.is_in_scope(card.id):
-                _log(
+                log(
                     f"SESSION_REINSERT "
                     f"mode=review "
                     f"card_id={card.id} "
@@ -181,13 +165,13 @@ def on_reviewer_did_answer_card(
             try:
                 card.load()
             except Exception:
-                _log_exception(
+                log_exception(
                     f"SESSION_REINSERT_CARD_RELOAD_ERROR "
                     f"card_id={card.id}"
                 )
 
             if card.queue < 0:
-                _log(
+                log(
                     f"SESSION_REINSERT "
                     f"mode=review "
                     f"card_id={card.id} "
@@ -204,7 +188,7 @@ def on_reviewer_did_answer_card(
 
             if currently_available:
                 active_session.append_revisit(int(card.id))
-                _log(
+                log(
                     f"SESSION_REINSERT "
                     f"mode=review "
                     f"card_id={card.id} "
@@ -214,7 +198,7 @@ def on_reviewer_did_answer_card(
                     f"new_remaining={active_session.remaining()}"
                 )
             else:
-                _log(
+                log(
                     f"SESSION_REINSERT "
                     f"mode=review "
                     f"card_id={card.id} "
@@ -224,7 +208,7 @@ def on_reviewer_did_answer_card(
                 )
 
     except Exception:
-        _log_exception(
+        log_exception(
             f"SESSION_ADVANCE_ERROR "
             f"card_id={card.id}"
         )
@@ -240,7 +224,7 @@ def on_state_will_change(
     if old_state == "review" and new_state != "review":
         current_session = session.get_session()
         if current_session is not None:
-            _log(
+            log(
                 f"SESSION_ABORTED "
                 f"state_change "
                 f"old={old_state!r} "

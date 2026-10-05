@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any
 
 from anki.consts import (
     QUEUE_TYPE_LRN,
@@ -10,20 +10,7 @@ from anki.consts import (
 from anki.scheduler.v3 import Scheduler as V3Scheduler
 from aqt import mw
 
-Log = Callable[[str], None]
-LogException = Callable[[str], None]
-
-_log: Log = lambda _message: None
-_log_exception: LogException = lambda _message: None
-
-
-def init_logger(log: Log, log_exception: LogException) -> None:
-    """
-    Configure logging callbacks for the scheduler integration.
-    """
-    global _log, _log_exception
-    _log = log
-    _log_exception = log_exception
+from .logger import log, log_debug, log_exception
 
 
 def ensure_v3_scheduler() -> V3Scheduler:
@@ -89,7 +76,7 @@ def get_scheduler_queue(
             + int(summary.review_count)
         )
 
-        _log(
+        log(
             f"SCHEDULER_QUEUE_SUMMARY "
             f"deck_id={deck_id} "
             f"new={summary.new_count} "
@@ -103,7 +90,7 @@ def get_scheduler_queue(
 
         queue = sched.get_queued_cards(fetch_limit=total)
 
-        _log(
+        log(
             f"SCHEDULER_QUEUE_FETCHED "
             f"deck_id={deck_id} "
             f"cards={len(queue.cards)} "
@@ -118,7 +105,7 @@ def get_scheduler_queue(
         try:
             decks.select(previous_deck_id)
         except Exception:
-            _log_exception(
+            log_exception(
                 "SCHEDULER_QUEUE_RESTORE_DECK_ERROR "
                 f"previous_deck_id={previous_deck_id}"
             )
@@ -150,7 +137,7 @@ def is_card_currently_queued(
 
         for qc in queue.cards:
             if queued_card_id(qc) == target_id:
-                _log(
+                log(
                     f"CARD_CURRENTLY_AVAILABLE "
                     f"deck_id={deck_id} "
                     f"card_id={target_id} "
@@ -159,7 +146,7 @@ def is_card_currently_queued(
 
                 return True
 
-        _log(
+        log(
             f"CARD_NOT_CURRENTLY_AVAILABLE "
             f"deck_id={deck_id} "
             f"card_id={target_id}"
@@ -168,7 +155,7 @@ def is_card_currently_queued(
         return False
 
     except Exception:
-        _log_exception(
+        log_exception(
             f"CARD_AVAILABILITY_CHECK_ERROR "
             f"deck_id={deck_id} "
             f"card_id={card_id}"
@@ -205,7 +192,7 @@ def get_today_card_ids(
             if queued_card_queue(qc) == int(QUEUE_TYPE_NEW)
         ]
 
-        _log(
+        log(
             f"TODAY_CARDS "
             f"mode=learn "
             f"deck_id={deck_id} "
@@ -214,7 +201,7 @@ def get_today_card_ids(
         )
 
         for index, card_id in enumerate(result):
-            _log(
+            log(
                 f"SNAPSHOT_CARD "
                 f"mode=learn "
                 f"index={index} "
@@ -234,7 +221,7 @@ def get_today_card_ids(
             }
         ]
 
-        _log(
+        log(
             f"TODAY_CARDS "
             f"mode=review "
             f"deck_id={deck_id} "
@@ -243,7 +230,7 @@ def get_today_card_ids(
         )
 
         for index, card_id in enumerate(result):
-            _log(
+            log(
                 f"SNAPSHOT_CARD "
                 f"mode=review "
                 f"index={index} "
@@ -278,7 +265,7 @@ def get_today_counts(
 
     review_count = int(queue.learning_count) + int(queue.review_count)
 
-    _log(
+    log(
         f"TODAY_COUNTS "
         f"deck_id={deck_id} "
         f"learn={learn_count} "

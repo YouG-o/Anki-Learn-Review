@@ -1,62 +1,10 @@
 from __future__ import annotations
 
-import logging
-import traceback
-from dataclasses import dataclass
-from logging.handlers import RotatingFileHandler
-from pathlib import Path
-from typing import Any
+from __future__ import annotations
 
-from anki.cards import Card
-from anki.consts import (
-    QUEUE_TYPE_DAY_LEARN_RELEARN,
-    QUEUE_TYPE_LRN,
-    QUEUE_TYPE_NEW,
-    QUEUE_TYPE_REV,
-)
-from anki.scheduler.v3 import Scheduler as V3Scheduler
-from anki.scheduler_pb2 import CardAnswer
 from aqt import gui_hooks, mw
-from aqt.reviewer import Reviewer
 
-
-# ============================================================================
-# Learn & Review
-# ============================================================================
-
-ADDON_DIR = Path(__file__).resolve().parent
-
-LOG_FILE = ADDON_DIR / "learn-review.log"
-
-logger = logging.getLogger("LearnReview")
-logger.setLevel(logging.INFO)
-logger.handlers.clear()
-
-file_handler = RotatingFileHandler(
-    LOG_FILE,
-    maxBytes=1_000_000,
-    backupCount=3,
-    encoding="utf-8",
-)
-
-file_handler.setFormatter(
-    logging.Formatter(
-        "%(asctime)s | %(levelname)s | %(message)s"
-    )
-)
-
-logger.addHandler(file_handler)
-logger.propagate = False
-
-
-def log(message: str) -> None:
-    logger.info(message)
-
-
-def log_exception(message: str) -> None:
-    logger.error(message)
-    logger.error(traceback.format_exc())
-
+from .logger import ADDON_DIR, LOG_FILE, log, log_debug, log_exception
 
 log("============================================================")
 log("Learn & Review - START")
@@ -80,8 +28,6 @@ from .session import ReviewSession
 
 from . import scheduler
 
-scheduler.init_logger(log=log, log_exception=log_exception)
-
 
 # ============================================================================
 # Native Reviewer integration
@@ -89,7 +35,6 @@ scheduler.init_logger(log=log, log_exception=log_exception)
 
 from . import reviewer
 
-reviewer.init_logger(log=log, log_exception=log_exception)
 reviewer.apply_patches()
 
 
@@ -99,14 +44,11 @@ reviewer.apply_patches()
 
 from . import deck_browser, session_manager
 
-session_manager.init_logger(log=log, log_exception=log_exception)
 session_manager.register_hooks()
 
 deck_browser.initialize(
     get_today_counts=scheduler.get_today_counts,
     start_session=session_manager.start_session,
-    log=log,
-    log_exception=log_exception,
 )
 
 
