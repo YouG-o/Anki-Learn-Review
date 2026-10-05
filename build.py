@@ -32,6 +32,9 @@ def build() -> None:
 
     required_files = [
         "__init__.py",
+        "addon.json",
+        "deck_browser.py",
+        "session.py",
     ]
 
     # Clean previous build.

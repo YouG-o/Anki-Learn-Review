@@ -70,6 +70,10 @@ log("Log rotation: max_bytes=1000000 backup_count=3")
 # Session state
 # ============================================================================
 
+from . import session
+from .session import ReviewSession
+
+
 @dataclass
 class SessionContext:
     deck_name: str
@@ -128,84 +132,6 @@ class SessionV3Info:
         raise ValueError(
             f"Invalid ease: {ease}"
         )
-
-
-@dataclass
-class ReviewSession:
-    """
-    Session state.
-
-    Learn:
-        The initial card list is a strict one-pass worklist.
-        Each New card is presented at most once during the session.
-
-    Review:
-        The initial card list defines the scope of the session:
-        Learning + Relearning + Review cards that were available when
-        the session started.
-
-        The worklist is allowed to grow during the session, but only
-        with cards that were already part of the initial scope.
-
-        When a Review card is answered, the native scheduler is queried
-        again. If that same card is immediately available according to
-        Anki's scheduler, it is appended to the end of the worklist and
-        can therefore be seen again during the same Review session.
-
-        This reproduces the important native behavior where a card can
-        require another pass during the same review session, while still
-        preventing unrelated cards from entering the session.
-
-    No deck limits or scheduler configuration are modified.
-    """
-
-    mode: str
-    deck_id: int
-    deck_name: str
-
-    # Dynamic worklist.
-    card_ids: list[int]
-
-    # Immutable initial scope of the session.
-    scope_card_ids: set[int]
-
-    position: int = 0
-
-    def remaining(self) -> int:
-        return max(
-            0,
-            len(self.card_ids) - self.position,
-        )
-
-    def finished(self) -> bool:
-        return self.position >= len(self.card_ids)
-
-    def current_card_id(self) -> int | None:
-        if self.finished():
-            return None
-
-        return self.card_ids[self.position]
-
-    def advance(self) -> None:
-        if not self.finished():
-            self.position += 1
-
-    def is_in_scope(self, card_id: int) -> bool:
-        return int(card_id) in self.scope_card_ids
-
-    def append_revisit(self, card_id: int) -> None:
-        """
-        Append a card for another pass.
-
-        The caller is responsible for checking scheduler availability.
-        """
-
-        self.card_ids.append(
-            int(card_id)
-        )
-
-
-SESSION: ReviewSession | None = None
 
 
 # ============================================================================
@@ -652,11 +578,9 @@ def custom_answer_card(
     Outside Learn & Review sessions, native Anki behavior is untouched.
     """
 
-    global SESSION
+    current_session = session.get_session()
 
-    session = SESSION
-
-    if session is None:
+    if current_session is None:
         return ORIGINAL_ANSWER_CARD(
             self,
             ease,
@@ -678,11 +602,11 @@ def custom_answer_card(
 
     log(
         f"SESSION_ANSWER_REQUEST "
-        f"mode={session.mode} "
+        f"mode={current_session.mode} "
         f"card_id={card.id} "
         f"ease={ease} "
-        f"position={session.position} "
-        f"remaining_before={session.remaining()}"
+        f"position={current_session.position} "
+        f"remaining_before={current_session.remaining()}"
     )
 
     proceed, ease = (
@@ -750,7 +674,7 @@ def custom_answer_card(
 
         log(
             f"SESSION_ANSWERED "
-            f"mode={session.mode} "
+            f"mode={current_session.mode} "
             f"card_id={card.id} "
             f"ease={ease} "
             f"type={card.type} "
@@ -801,29 +725,27 @@ def custom_get_next_v3_card(
         again when the native scheduler says they are immediately available.
     """
 
-    global SESSION
+    current_session = session.get_session()
 
-    session = SESSION
-
-    if session is None:
+    if current_session is None:
         return ORIGINAL_GET_NEXT_V3_CARD(
             self
         )
 
     log(
         f"REVIEWER_NEXT "
-        f"mode={session.mode} "
-        f"deck_id={session.deck_id} "
-        f"position={session.position} "
-        f"total={len(session.card_ids)} "
-        f"remaining={session.remaining()} "
-        f"scope={len(session.scope_card_ids)}"
+        f"mode={current_session.mode} "
+        f"deck_id={current_session.deck_id} "
+        f"position={current_session.position} "
+        f"total={len(current_session.card_ids)} "
+        f"remaining={current_session.remaining()} "
+        f"scope={len(current_session.scope_card_ids)}"
     )
 
-    while not session.finished():
+    while not current_session.finished():
 
         card_id = (
-            session.current_card_id()
+            current_session.current_card_id()
         )
 
         if card_id is None:
@@ -840,29 +762,29 @@ def custom_get_next_v3_card(
                     f"card_id={card_id}"
                 )
 
-                session.advance()
+                current_session.advance()
                 continue
 
             if not card_matches_session(
                 card,
-                session.mode,
+                current_session.mode,
             ):
                 log(
                     f"SESSION_CARD_SKIPPED "
                     f"card_id={card_id} "
-                    f"mode={session.mode} "
+                    f"mode={current_session.mode} "
                     f"type={card.type} "
                     f"queue={card.queue}"
                 )
 
-                session.advance()
+                current_session.advance()
                 continue
 
             states_info = (
                 get_custom_scheduling_info(
                     self,
                     card,
-                    session,
+                    current_session,
                 )
             )
 
@@ -878,8 +800,8 @@ def custom_get_next_v3_card(
                 f"type={card.type} "
                 f"queue={card.queue} "
                 f"due={card.due} "
-                f"position={session.position} "
-                f"remaining={session.remaining()}"
+                f"position={current_session.position} "
+                f"remaining={current_session.remaining()}"
             )
 
             return
@@ -890,18 +812,18 @@ def custom_get_next_v3_card(
                 f"card_id={card_id}"
             )
 
-            session.advance()
+            current_session.advance()
 
     log(
         f"SESSION_FINISHED "
-        f"mode={session.mode} "
-        f"deck_id={session.deck_id} "
-        f"processed={session.position} "
-        f"total={len(session.card_ids)} "
-        f"scope={len(session.scope_card_ids)}"
+        f"mode={current_session.mode} "
+        f"deck_id={current_session.deck_id} "
+        f"processed={current_session.position} "
+        f"total={len(current_session.card_ids)} "
+        f"scope={len(current_session.scope_card_ids)}"
     )
 
-    SESSION = None
+    session.clear_session()
 
     self.card = None
     self._v3 = None
@@ -915,8 +837,6 @@ def start_session(
     mode: str,
     deck_id: int,
 ) -> None:
-
-    global SESSION
 
     if mw.col is None:
         raise RuntimeError(
@@ -977,7 +897,7 @@ def start_session(
 
         return
 
-    SESSION = ReviewSession(
+    new_session = ReviewSession(
         mode=mode,
         deck_id=deck_id,
         deck_name=deck_name,
@@ -985,6 +905,7 @@ def start_session(
         scope_card_ids=set(card_ids),
         position=0,
     )
+    session.set_session(new_session)
 
     log(
         f"SESSION_CREATED "
@@ -1006,7 +927,7 @@ def start_session(
         )
 
     except Exception:
-        SESSION = None
+        session.clear_session()
 
         log_exception(
             "MOVE_TO_REVIEW_ERROR"
@@ -1039,25 +960,25 @@ def on_reviewer_did_answer_card(
     ease: int,
 ) -> None:
 
-    global SESSION
+    current_session = session.get_session()
 
-    if SESSION is None:
+    if current_session is None:
         return
 
     try:
-        session = SESSION
+        active_session = current_session
 
         log(
             f"ANSWERED "
             f"card_id={card.id} "
             f"ease={ease} "
-            f"mode={session.mode} "
-            f"session_position={session.position} "
-            f"session_remaining_before={session.remaining()}"
+            f"mode={active_session.mode} "
+            f"session_position={active_session.position} "
+            f"session_remaining_before={active_session.remaining()}"
         )
 
         current_id = (
-            session.current_card_id()
+            active_session.current_card_id()
         )
 
         if current_id != card.id:
@@ -1069,20 +990,20 @@ def on_reviewer_did_answer_card(
 
             return
 
-        session.advance()
+        active_session.advance()
 
         log(
             f"SESSION_ADVANCE "
             f"answered_card={card.id} "
-            f"new_position={session.position} "
-            f"remaining={session.remaining()}"
+            f"new_position={active_session.position} "
+            f"remaining={active_session.remaining()}"
         )
 
         # ----------------------------------------------------------------
         # Learn
         # ----------------------------------------------------------------
 
-        if session.mode == "learn":
+        if active_session.mode == "learn":
             log(
                 f"SESSION_REINSERT "
                 f"mode=learn "
@@ -1097,9 +1018,9 @@ def on_reviewer_did_answer_card(
         # Review
         # ----------------------------------------------------------------
 
-        if session.mode == "review":
+        if active_session.mode == "review":
 
-            if not session.is_in_scope(
+            if not active_session.is_in_scope(
                 card.id
             ):
                 log(
@@ -1135,13 +1056,13 @@ def on_reviewer_did_answer_card(
 
             currently_available = (
                 is_card_currently_queued(
-                    session.deck_id,
+                    active_session.deck_id,
                     int(card.id),
                 )
             )
 
             if currently_available:
-                session.append_revisit(
+                active_session.append_revisit(
                     int(card.id)
                 )
 
@@ -1151,8 +1072,8 @@ def on_reviewer_did_answer_card(
                     f"card_id={card.id} "
                     f"reinserted=yes "
                     f"reason=native_scheduler_available "
-                    f"new_total={len(session.card_ids)} "
-                    f"new_remaining={session.remaining()}"
+                    f"new_total={len(active_session.card_ids)} "
+                    f"new_remaining={active_session.remaining()}"
                 )
 
             else:
@@ -1162,7 +1083,7 @@ def on_reviewer_did_answer_card(
                     f"card_id={card.id} "
                     f"reinserted=no "
                     f"reason=native_scheduler_not_available "
-                    f"new_remaining={session.remaining()}"
+                    f"new_remaining={active_session.remaining()}"
                 )
 
     except Exception:
@@ -1186,24 +1107,23 @@ def on_state_will_change(
     old_state: str,
 ) -> None:
 
-    global SESSION
-
     if (
         old_state == "review"
         and new_state != "review"
     ):
-        if SESSION is not None:
+        current_session = session.get_session()
+        if current_session is not None:
             log(
                 f"SESSION_ABORTED "
                 f"state_change "
                 f"old={old_state!r} "
                 f"new={new_state!r} "
-                f"position={SESSION.position} "
-                f"total={len(SESSION.card_ids)} "
-                f"scope={len(SESSION.scope_card_ids)}"
+                f"position={current_session.position} "
+                f"total={len(current_session.card_ids)} "
+                f"scope={len(current_session.scope_card_ids)}"
             )
 
-            SESSION = None
+            session.clear_session()
 
 
 gui_hooks.state_will_change.append(
