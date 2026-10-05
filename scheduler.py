@@ -201,7 +201,7 @@ def get_today_card_ids(
         )
 
         for index, card_id in enumerate(result):
-            log(
+            log_debug(
                 f"SNAPSHOT_CARD "
                 f"mode=learn "
                 f"index={index} "
@@ -230,7 +230,7 @@ def get_today_card_ids(
         )
 
         for index, card_id in enumerate(result):
-            log(
+            log_debug(
                 f"SNAPSHOT_CARD "
                 f"mode=review "
                 f"index={index} "
