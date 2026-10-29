@@ -41,10 +41,11 @@ compatibility_ok = reviewer.apply_patches()
 # Session Manager & Deck Browser integration
 # ============================================================================
 
-from . import deck_browser, session_manager
+from . import deck_browser, deck_settings, session_manager
 
 if compatibility_ok:
     session_manager.register_hooks()
+    deck_settings.register_hooks()
     deck_browser.initialize(
         start_session=session_manager.start_session,
     )

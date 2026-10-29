@@ -15,7 +15,7 @@ from anki.scheduler_pb2 import CardAnswer
 from aqt import gui_hooks, mw
 from aqt.reviewer import Reviewer
 
-from . import scheduler, session
+from . import card_presentations, scheduler, session
 from .logger import log, log_debug, log_exception
 from .session import ReviewSession
 
@@ -381,6 +381,8 @@ def custom_get_next_v3_card(
                 card,
                 current_session,
             )
+
+            card_presentations.apply_session_presentation(card, current_session)
 
             self._v3 = states_info
             self.card = card

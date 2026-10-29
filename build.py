@@ -10,6 +10,21 @@ ROOT = Path(__file__).resolve().parent
 DIST_DIR = ROOT / "dist"
 
 
+REQUIRED_FILES = (
+    "__init__.py",
+    "addon.json",
+    "deck_browser.py",
+    "deck_settings.py",
+    "card_presentations.py",
+    "presentation_config.py",
+    "logger.py",
+    "reviewer.py",
+    "scheduler.py",
+    "session.py",
+    "session_manager.py",
+)
+
+
 def load_metadata() -> tuple[str, str]:
     metadata_file = ROOT / "addon.json"
 
@@ -22,7 +37,7 @@ def load_metadata() -> tuple[str, str]:
     except KeyError as error:
         raise SystemExit(
             f"Missing field in addon.json: {error.args[0]}"
-        )
+        ) from error
 
     return name, version
 
@@ -30,42 +45,21 @@ def load_metadata() -> tuple[str, str]:
 def build() -> None:
     name, version = load_metadata()
 
-    required_files = [
-        "__init__.py",
-        "addon.json",
-        "deck_browser.py",
-        "logger.py",
-        "reviewer.py",
-        "scheduler.py",
-        "session.py",
-        "session_manager.py",
-    ]
+    # Validate inputs before deleting an existing release.
+    for filename in REQUIRED_FILES:
+        if not (ROOT / filename).is_file():
+            raise SystemExit(f"Required addon file not found: {filename}")
 
     # Clean previous build.
     if DIST_DIR.exists():
         shutil.rmtree(DIST_DIR)
 
     DIST_DIR.mkdir()
-
     zip_path = DIST_DIR / f"{name}_{version}.zip"
 
-    with ZipFile(
-        zip_path,
-        "w",
-        compression=ZIP_DEFLATED,
-    ) as archive:
-        for filename in required_files:
-            source = ROOT / filename
-
-            if not source.is_file():
-                raise SystemExit(
-                    f"Required addon file not found: {filename}"
-                )
-
-            archive.write(
-                source,
-                arcname=f"{name}/{filename}",
-            )
+    with ZipFile(zip_path, "w", compression=ZIP_DEFLATED) as archive:
+        for filename in REQUIRED_FILES:
+            archive.write(ROOT / filename, arcname=f"{name}/{filename}")
 
     print(f"Built: {zip_path}")
 
